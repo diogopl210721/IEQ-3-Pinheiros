@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diário de Culto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --night: #1B2140;
+    --night-2: #262C52;
+    --gold: #E8AA42;
+    --gold-deep: #C98A26;
+    --parchment: #FBF7EE;
+    --card: #FFFDF8;
+    --ink: #241F18;
+    --ink-soft: #746C5E;
+    --line: #E7DFCE;
+    --success: #5C8A5B;
+    --danger: #B8503E;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--parchment);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Fraunces',serif;margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    background:linear-gradient(160deg,var(--night) 0%,var(--night-2) 100%);
+    color:#F4EFE2;
+    padding:36px 24px 70px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute; inset:0;
+    background-image:repeating-linear-gradient(180deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 26px);
+    pointer-events:none;
+  }
+  .hero-inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;position:relative;z-index:1;}
+  .hero-title{display:flex;align-items:center;gap:14px;}
+  .hero-title h1{font-size:2.1rem;font-weight:700;letter-spacing:-0.01em;}
+  .hero-title p{margin:4px 0 0;color:#C9C3B4;font-size:0.95rem;}
+  .flame{width:26px;height:34px;flex-shrink:0;}
+  .flame path{fill:var(--gold);transform-origin:50% 100%;animation:flicker 2.6s ease-in-out infinite;}
+  @keyframes flicker{
+    0%,100%{transform:scaleY(1) scaleX(1) rotate(0deg);}
+    25%{transform:scaleY(1.08) scaleX(0.95) rotate(-2deg);}
+    50%{transform:scaleY(0.94) scaleX(1.04) rotate(1deg);}
+    75%{transform:scaleY(1.05) scaleX(0.97) rotate(-1deg);}
+  }
+  .hero-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.82rem;
+    color:var(--gold);
+    border:1px solid rgba(232,170,66,0.4);
+    padding:8px 14px;
+    border-radius:999px;
+    text-transform:capitalize;
+  }
+
+  /* ---------- KPIs ---------- */
+  .kpi-row{
+    max-width:1180px;margin:-46px auto 0;padding:0 24px;
+    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;position:relative;z-index:2;
+  }
+  .kpi-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:20px 20px 18px;
+    box-shadow:0 10px 30px rgba(27,33,64,0.16);
+    border-top:3px solid var(--gold);
+  }
+  .kpi-label{font-size:0.78rem;color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+  .kpi-value{font-family:'IBM Plex Mono',monospace;font-size:2.1rem;font-weight:600;color:var(--night);margin-top:6px;}
+  .kpi-sub{font-size:0.76rem;color:var(--ink-soft);margin-top:2px;}
+
+  /* ---------- Main layout ---------- */
+  main{max-width:1180px;margin:40px auto 60px;padding:0 24px;display:grid;grid-template-columns:1.35fr 1fr;gap:24px;align-items:start;}
+  @media (max-width:900px){ main{grid-template-columns:1fr;} .kpi-row{grid-template-columns:repeat(2,1fr);} }
+
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:0 6px 20px rgba(27,33,64,0.07);border:1px solid var(--line);}
+  .card-pad{padding:24px;}
+
+  form h2{font-size:1.3rem;margin-bottom:4px;}
+  form > p.hint{color:var(--ink-soft);font-size:0.88rem;margin:0 0 20px;}
+
+  fieldset{border:none;padding:0;margin:0 0 18px;}
+  legend{font-family:'Fraunces',serif;font-weight:600;font-size:1rem;color:var(--night);padding:0 0 10px;width:100%;border-bottom:1px dashed var(--line);margin-bottom:14px;}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .grid.two{grid-template-columns:repeat(2,1fr);}
+  @media (max-width:560px){.grid, .grid.two{grid-template-columns:1fr;}}
+
+  label{display:block;font-size:0.8rem;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  input, textarea, select{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    font-family:'Inter',sans-serif;font-size:0.92rem;color:var(--ink);background:#fff;
+  }
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:var(--gold);}
+  textarea{resize:vertical;min-height:56px;}
+  .field{margin-bottom:12px;}
+
+  details{margin-bottom:18px;border-bottom:1px dashed var(--line);padding-bottom:6px;}
+  details summary{
+    font-family:'Fraunces',serif;font-weight:600;font-size:1rem;color:var(--night);cursor:pointer;
+    padding:6px 0 12px;list-style:none;display:flex;align-items:center;gap:8px;
+  }
+  details summary::-webkit-details-marker{display:none;}
+  details summary::before{content:"▸";color:var(--gold-deep);transition:transform .15s;}
+  details[open] summary::before{transform:rotate(90deg);}
+
+  .total-pill{
+    display:inline-flex;align-items:center;gap:8px;background:var(--night);color:var(--gold);
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:0.85rem;
+    padding:7px 14px;border-radius:999px;margin:2px 0 14px;
+  }
+
+  .btn-save{
+    background:var(--gold);color:var(--night);border:none;font-weight:700;font-size:1rem;
+    padding:13px 26px;border-radius:10px;cursor:pointer;font-family:'Inter',sans-serif;
+    box-shadow:0 6px 16px rgba(232,170,66,0.35); transition:transform .1s, background .15s;
+  }
+  .btn-save:hover{background:var(--gold-deep);}
+  .btn-save:active{transform:translateY(1px);}
+  .btn-save:disabled{opacity:0.6;cursor:wait;}
+
+  /* ---------- chart / list panel ---------- */
+  .panel-dark{background:linear-gradient(160deg,var(--night) 0%,var(--night-2) 100%);color:#EFEAE0;}
+  .panel-dark h3{color:#F4EFE2;font-size:1.05rem;margin-bottom:14px;}
+  .panel-dark .kpi-sub, .panel-dark p{color:#B9B3A2;}
+
+  ul.recent{list-style:none;margin:0;padding:0;}
+  ul.recent li{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 0;border-bottom:1px solid var(--line);
+  }
+  ul.recent li:last-child{border-bottom:none;}
+  .recent-date{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:var(--ink-soft);white-space:nowrap;}
+  .recent-name{font-weight:600;font-size:0.9rem;}
+  .badge{
+    background:#F0E6CE;color:var(--gold-deep);font-family:'IBM Plex Mono',monospace;font-weight:600;
+    font-size:0.78rem;padding:3px 9px;border-radius:999px;
+  }
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;bottom:24px;right:24px;background:var(--night);color:#fff;
+    padding:14px 20px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.25);
+    font-size:0.9rem;display:none;align-items:center;gap:10px;z-index:50;max-width:320px;
+    border-left:4px solid var(--success);
+  }
+  #toast.error{border-left-color:var(--danger);}
+
+  footer{text-align:center;color:var(--ink-soft);font-size:0.8rem;padding:20px;}
+  .config-warning{
+    max-width:1180px;margin:20px auto 0;padding:14px 24px;background:#FBEAEA;color:var(--danger);
+    border:1px solid #F0C8C2;border-radius:10px;font-size:0.88rem;display:none;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-title">
+      <svg class="flame" viewBox="0 0 24 32"><path d="M12 0c2 5-4 7-4 13a4 4 0 108 0c0-2-1-3-1-5 3 2 5 6 5 10a8 8 0 11-16 0C4 11 9 8 12 0z"/></svg>
+      <div>
+        <h1>Diário de Culto</h1>
+        <p>Painel de registros e acompanhamento dos cultos</p>
+      </div>
+    </div>
+    <div class="hero-date" id="heroDate"></div>
+  </div>
+</header>
+
+<div class="kpi-row" id="kpiRow">
+  <div class="kpi-card">
+    <div class="kpi-label">Cultos no ano</div>
+    <div class="kpi-value" id="kpiAnual">—</div>
+    <div class="kpi-sub" id="kpiAnualSub"></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Cultos no mês</div>
+    <div class="kpi-value" id="kpiMensal">—</div>
+    <div class="kpi-sub" id="kpiMensalSub"></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Visitantes no mês</div>
+    <div class="kpi-value" id="kpiVisitantes">—</div>
+    <div class="kpi-sub">soma de todos os cultos do mês</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Média de pessoas/culto</div>
+    <div class="kpi-value" id="kpiMediaPessoas">—</div>
+    <div class="kpi-sub">média no mês atual</div>
+  </div>
+</div>
+
+<div class="config-warning" id="configWarning">
+  ⚠️ Configure o arquivo <code>config.js</code> com a URL e a chave "anon" do seu projeto Supabase para o painel funcionar.
+</div>
+
+<main>
+  <!-- ===================== FORM ===================== -->
+  <div class="card card-pad">
+    <form id="formCulto">
+      <h2>Registrar culto</h2>
+      <p class="hint">Preencha os dados logo após o culto — leva menos de 2 minutos.</p>
+
+      <fieldset>
+        <legend>Quando & quem pregou</legend>
+        <div class="grid">
+          <div class="field"><label>Data do culto *</label><input type="date" name="data_culto" required></div>
+          <div class="field"><label>Hora inicial</label><input type="time" name="hora_culto"></div>
+          <div class="field"><label>Pregador</label><input type="text" name="pregador" placeholder="Nome do pregador"></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Presença</legend>
+        <div class="grid">
+          <div class="field"><label>Visitantes</label><input type="number" min="0" name="visitantes" value="0"></div>
+          <div class="field"><label>Crianças (0–10 anos)</label><input type="number" min="0" name="criancas" value="0"></div>
+          <div class="field"><label>Adultos</label><input type="number" min="0" name="adultos" value="0"></div>
+        </div>
+        <span class="total-pill">Total de pessoas: <span id="totalPessoas">0</span></span>
+      </fieldset>
+
+      <details open>
+        <summary>Equipe de serviço</summary>
+        <div class="grid two">
+          <div class="field"><label>Pastores e obreiros presentes</label><input type="text" name="pastores_obreiros"></div>
+          <div class="field"><label>Diáconos em serviço</label><input type="text" name="diaconos_servico"></div>
+          <div class="field"><label>Recepção</label><input type="text" name="recepcao"></div>
+          <div class="field"><label>Músicos</label><input type="text" name="musicos"></div>
+        </div>
+        <div class="field"><label>Vocal</label><input type="text" name="vocal"></div>
+      </details>
+
+      <details open>
+        <summary>Finanças</summary>
+        <div class="field"><label>Nome e valor dos dizimistas <span style="font-weight:400;">(ex: nome R$ 00,00)</span></label>
+          <textarea name="dizimistas_detalhe" placeholder="Ex: Alexandre 120,00&#10;Denis 125,00"></textarea>
+        </div>
+        <div class="grid">
+          <div class="field"><label>Dizimistas (total R$)</label><input type="number" step="0.01" min="0" name="dizimistas" value="0"></div>
+          <div class="field"><label>Ofertas Missões (R$)</label><input type="number" step="0.01" min="0" name="ofertas_missoes" value="0"></div>
+          <div class="field"><label>Ofertas Primícias (R$)</label><input type="number" step="0.01" min="0" name="ofertas_primicias" value="0"></div>
+        </div>
+        <div class="grid two">
+          <div class="field"><label>Ofertas Gerais (R$)</label><input type="number" step="0.01" min="0" name="ofertas_gerais" value="0"></div>
+          <div class="field"><label>Nome dos dizimistas</label><input type="text" name="nome_dizimistas"></div>
+        </div>
+        <div class="field"><label>Preenchido e conferido por</label><input type="text" name="conferido_por_1"></div>
+      </details>
+
+      <details>
+        <summary>Manifestações espirituais</summary>
+        <div class="grid two">
+          <div class="field"><label>Apresentação de criança</label><input type="text" name="apresentacao_crianca"></div>
+          <div class="field"><label>Batismo Esp. Santo</label><input type="text" name="batismo_esp_santo"></div>
+          <div class="field"><label>Conversão</label><input type="text" name="conversao"></div>
+          <div class="field"><label>Reconciliação</label><input type="text" name="reconciliacao"></div>
+        </div>
+        <div class="field"><label>Testemunho</label><textarea name="testemunho"></textarea></div>
+        <div class="field"><label>Preenchido e conferido por (2)</label><input type="text" name="conferido_por_2"></div>
+      </details>
+
+      <button type="submit" class="btn-save" id="btnSave">Registrar culto</button>
+    </form>
+  </div>
+
+  <!-- ===================== DASHBOARD SIDE ===================== -->
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div class="card card-pad panel-dark">
+      <h3>Cultos por mês</h3>
+      <canvas id="chartMensal" height="180"></canvas>
+    </div>
+    <div class="card card-pad">
+      <h3 style="margin-bottom:14px;">Últimos cultos</h3>
+      <ul class="recent" id="listaRecentes">
+        <li><span class="recent-name">Carregando…</span></li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<footer>Diário de Culto · dados armazenados no Supabase</footer>
+<div id="toast"></div>
+
+<script>
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+const DIAS = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
+
+// ---------- header date ----------
+(function(){
+  const now = new Date();
+  document.getElementById('heroDate').textContent =
+    `${DIAS[now.getDay()]}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
+})();
+
+// ---------- supabase client ----------
+let supabase = null;
+const configOk = window.SUPABASE_URL && window.SUPABASE_ANON_KEY &&
+  !window.SUPABASE_URL.includes('COLE_AQUI') && !window.SUPABASE_ANON_KEY.includes('COLE_AQUI');
+
+if (configOk) {
+  supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+} else {
+  document.getElementById('configWarning').style.display = 'block';
+}
+
+// ---------- toast ----------
+function toast(msg, isError=false){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+  el.style.display = 'flex';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=> el.style.display='none', 4000);
+}
+
+// ---------- live total de pessoas no formulário ----------
+function updateTotalPreview(){
+  const f = document.getElementById('formCulto');
+  const v = Number(f.visitantes.value||0), c = Number(f.criancas.value||0), a = Number(f.adultos.value||0);
+  document.getElementById('totalPessoas').textContent = v+c+a;
+}
+['visitantes','criancas','adultos'].forEach(n=>{
+  document.querySelector(`[name=${n}]`).addEventListener('input', updateTotalPreview);
+});
+
+// ---------- form submit ----------
+document.getElementById('formCulto').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!supabase){ toast('Configure o config.js antes de registrar.', true); return; }
+  const btn = document.getElementById('btnSave');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+
+  const f = e.target;
+  const payload = {
+    data_culto: f.data_culto.value,
+    hora_culto: f.hora_culto.value || null,
+    pregador: f.pregador.value || null,
+    visitantes: Number(f.visitantes.value||0),
+    criancas: Number(f.criancas.value||0),
+    adultos: Number(f.adultos.value||0),
+    apresentacao_crianca: f.apresentacao_crianca.value || null,
+    pastores_obreiros: f.pastores_obreiros.value || null,
+    diaconos_servico: f.diaconos_servico.value || null,
+    recepcao: f.recepcao.value || null,
+    musicos: f.musicos.value || null,
+    vocal: f.vocal.value || null,
+    dizimistas_detalhe: f.dizimistas_detalhe.value || null,
+    dizimistas: Number(f.dizimistas.value||0),
+    ofertas_missoes: Number(f.ofertas_missoes.value||0),
+    ofertas_primicias: Number(f.ofertas_primicias.value||0),
+    ofertas_gerais: Number(f.ofertas_gerais.value||0),
+    nome_dizimistas: f.nome_dizimistas.value || null,
+    conferido_por_1: f.conferido_por_1.value || null,
+    testemunho: f.testemunho.value || null,
+    batismo_esp_santo: f.batismo_esp_santo.value || null,
+    conversao: f.conversao.value || null,
+    reconciliacao: f.reconciliacao.value || null,
+    conferido_por_2: f.conferido_por_2.value || null,
+  };
+
+  const { error } = await supabase.from('cultos').insert(payload);
+  btn.disabled = false; btn.textContent = 'Registrar culto';
+
+  if(error){ toast('Erro ao salvar: ' + error.message, true); return; }
+  toast('Culto registrado com sucesso ✓');
+  f.reset();
+  updateTotalPreview();
+  loadDashboard();
+});
+
+// ---------- dashboard ----------
+let chart;
+
+async function loadDashboard(){
+  if(!supabase) return;
+  const now = new Date();
+  const anoAtual = now.getFullYear();
+  const mesAtual = now.getMonth(); // 0-11
+  const inicioAno = `${anoAtual}-01-01`;
+  const inicioMes = `${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-01`;
+  const proxMesDate = new Date(anoAtual, mesAtual+1, 1);
+  const inicioProxMes = `${proxMesDate.getFullYear()}-${String(proxMesDate.getMonth()+1).padStart(2,'0')}-01`;
+
+  const { data: doAno, error: e1 } = await supabase
+    .from('cultos').select('data_culto').gte('data_culto', inicioAno);
+  const { data: doMes, error: e2 } = await supabase
+    .from('cultos').select('visitantes,total_pessoas,data_culto')
+    .gte('data_culto', inicioMes).lt('data_culto', inicioProxMes);
+  const { data: recentes, error: e3 } = await supabase
+    .from('cultos').select('data_culto,pregador,total_pessoas,visitantes')
+    .order('data_culto', {ascending:false}).limit(8);
+  const { data: seismeses, error: e4 } = await supabase
+    .from('cultos').select('data_culto')
+    .gte('data_culto', `${anoAtual-1}-${String(mesAtual+2).padStart(2,'0')}-01`);
+
+  if(e1||e2||e3||e4){ toast('Erro ao carregar dados do painel', true); console.error(e1||e2||e3||e4); return; }
+
+  // KPI: cultos no ano
+  document.getElementById('kpiAnual').textContent = doAno.length;
+  document.getElementById('kpiAnualSub').textContent = `em ${anoAtual}`;
+
+  // KPI: cultos no mês
+  document.getElementById('kpiMensal').textContent = doMes.length;
+  document.getElementById('kpiMensalSub').textContent = MESES[mesAtual] + ' de ' + anoAtual;
+
+  // KPI: visitantes no mês
+  const somaVisitantes = doMes.reduce((s,r)=> s + (r.visitantes||0), 0);
+  document.getElementById('kpiVisitantes').textContent = somaVisitantes;
+
+  // KPI: média de pessoas por culto no mês
+  const mediaPessoas = doMes.length ? Math.round(doMes.reduce((s,r)=> s+(r.total_pessoas||0),0) / doMes.length) : 0;
+  document.getElementById('kpiMediaPessoas').textContent = mediaPessoas;
+
+  // lista recentes
+  const ul = document.getElementById('listaRecentes');
+  ul.innerHTML = '';
+  if(!recentes.length){
+    ul.innerHTML = '<li><span class="recent-name">Nenhum culto registrado ainda.</span></li>';
+  }
+  recentes.forEach(r=>{
+    const li = document.createElement('li');
+    const dataFmt = new Date(r.data_culto + 'T00:00:00').toLocaleDateString('pt-BR');
+    li.innerHTML = `
+      <div>
+        <div class="recent-name">${r.pregador || 'Sem pregador informado'}</div>
+        <div class="recent-date">${dataFmt}</div>
+      </div>
+      <span class="badge">${r.total_pessoas ?? 0} pessoas</span>
+    `;
+    ul.appendChild(li);
+  });
+
+  // gráfico: cultos por mês (últimos 6 meses)
+  const contagem = {};
+  seismeses.forEach(r=>{
+    const d = new Date(r.data_culto + 'T00:00:00');
+    const chave = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    contagem[chave] = (contagem[chave]||0)+1;
+  });
+  const labels = [];
+  const valores = [];
+  for(let i=5;i>=0;i--){
+    const d = new Date(anoAtual, mesAtual - i, 1);
+    const chave = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    labels.push(MESES[d.getMonth()].slice(0,3));
+    valores.push(contagem[chave] || 0);
+  }
+
+  const ctx = document.getElementById('chartMensal').getContext('2d');
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: valores, backgroundColor: '#E8AA42', borderRadius: 6, maxBarThickness: 34 }] },
+    options: {
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:(c)=> c.raw + ' culto(s)'}} },
+      scales:{
+        x:{ ticks:{color:'#B9B3A2'}, grid:{display:false} },
+        y:{ beginAtZero:true, ticks:{color:'#B9B3A2', stepSize:1}, grid:{color:'rgba(255,255,255,0.06)'} }
+      }
+    }
+  });
+}
+
+updateTotalPreview();
+loadDashboard();
+</script>
+</body>
+</html>
